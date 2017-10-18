@@ -1,15 +1,21 @@
 ---
 title: "Project 3 Data Science Skills"
-author: "Umais Siddiqui,Neil Hwang, Michelle Mondy, Kalyanaraman Parthasarathy and 
-Murali Kunissery"
+author: Umais Siddiqui,Neil Hwang, Michelle Mondy, Kalyanaraman Parthasarathy and
+  Murali Kunissery
 date: "October 17, 2017"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 ```
+
+Rpubs link: http://rpubs.com/umais/data607_project3
+
+GitHub link: https://github.com/umais/Data607-Project3
 
 ##Obejective
 
