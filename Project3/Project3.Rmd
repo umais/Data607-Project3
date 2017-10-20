@@ -13,7 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-Rpubs link: http://rpubs.com/umais/data607_project3
+Rpubs link: http://rpubs.com/umais/data607_project3 |
+            http://rpubs.com/neilhwang/group2
 
 GitHub link: https://github.com/umais/Data607-Project3
 
@@ -28,16 +29,23 @@ In this assignment our goal is to be able to answer the question
 We have researched a couple of job searching websites and decided to use CyberCoders website to scrape the skillset required for Jobs that had a title of Data Scientist.We will be using the rvest and MySQL libraries. rvest will be used to scrape and parse the HTML data.
 
 ```{r}
+library(devtools)
 library(rvest)
 library(RMySQL)
+library(arules)
+library(arulesViz)
+library(ggplot2)
+library(plyr)
 ```
 
 ##Data Collection
 
 In the step below we are opening the connection to MySQL database that resides locally but can also be a remote database server. We will use this connection to create the schema , Insert data that is collected from the scraping and also fetch the data for analysis.
 ```{r}
-mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
-
+#mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
+mydb = dbConnect(MySQL(), user='root', password='password', host= '127.0.0.1', port=3306)
+#dbSendQuery(mydb, "CREATE DATABASE project3;")
+dbSendQuery(mydb, "USE project3")
 ```
 
 ##Insert Function
@@ -47,8 +55,6 @@ In this step we are defining a function that will accept HTML data that would be
 ```{r}
 InsertData<-function (url){
   selector_name<-".job-details-container"
-
-
 
 skills<-html_nodes(x = url, css = selector_name)
 for(i in 1:length(skills))
@@ -136,8 +142,6 @@ url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/')
   selector_name<-".pager-item span"
   pages<-html_nodes(x = url, css = selector_name)%>%
     html_text()
-  
-
 ```
 
 ##Retrieving Data from MySQL
@@ -145,31 +149,66 @@ url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/')
 We will be retrieving the data inserted in previous step and perfomring some downstream analysis on the data.
 
 ```{r}
-
-results = dbSendQuery(mydb, "SELECT j.JobTitle,j.JobLocation,s.SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId  ;")
-
-jobSkills=fetch(results, n=-1)
-
-head(jobSkills)
-
+  results = dbSendQuery(mydb, "SELECT j.JobTitle,j.JobLocation,s.SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId  ;")
+  
+  jobSkills=fetch(results, n=-1)
+  
+  head(jobSkills)
+  
+```
+  
+  ##More Analysis
+  
+  We can tell by the initial look from the pie chart and the results from group by quety that Python is the skill that is most valued.
+  
+```{r}
+  rs = dbSendQuery(mydb, "SELECT SkillName,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId GROUP BY SkillName Order By Total desc ;")
+  
+  df=fetch(rs, n=-1)
+  
+  head(df)
+  
+  rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
+  
+  AllJobs=fetch(rs, n=-1)
+  
+head(AllJobs)
 ```
 
-##More Analysis
-
-We can tell by the initial look from the pie chart and the results from group by quety that Python is the skill that is most valued.
+To explore the data further, we perform an association analysis, which is one of the more popular unsupervised machine learning algorithms, using the package *arules*.
+To begin, we preoprocess the data to list the skills by specific jobs.
 
 ```{r}
-rs = dbSendQuery(mydb, "SELECT SkillName,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId GROUP BY SkillName Order By Total desc ;")
+df <- data.frame(matrix(ncol = 2, nrow = nrow(AllJobs)))
+df[,1] <- factor(AllJobs[,"JobId"])
+df[,2] <- factor(AllJobs[,"SkillName"])
+temp <- df[,c(1,2)]
+first_item <- ddply(temp, .(X1), function(x) x[1, ])
+temp2 <- merge(x = temp, y = first_item, by = "X1", all.x = TRUE)
+data <- temp2[duplicated(temp2$X1),]
+data$X1 <- data$X2.y
+data$X2.y <- NULL
+names(data) <- c("X", "Y")
+m <- as.matrix(data)
+l <- lapply(1:nrow(m), FUN = function(i) (m[i, ]))
+```
 
-df=fetch(rs, n=-1)
+Now, we convert the list into transactions that *arules* can work with in forming aprior rules to identify the most common associations that tend to occur together among skills. 
+```{r}
+transactions <- as(l, "transactions")
+itemsets <- apriori(transactions, parameter = list(target = "frequent",
+    supp=0.001, minlen = 2, maxlen=6))
+```
 
-head(df)
+This frequency plot confirms our findings earlier that among the most demanded skill of data scientists are python, machine learning, R, data mining, and hadoop.
+```{r}
+#Top 30 most frequently occurring skills
+itemFrequencyPlot(transactions, topN=30)
+quality(itemsets)$lift <- interestMeasure(itemsets, measure="lift", trans = transactions)
 
-rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
+#Top 30 associations
+inspect(head(sort(itemsets, by = "lift"), n=30))
 
-AllJobs=fetch(rs, n=-1)
-
-head(AllJobs)
-
-
+#Visualization of top associations and skills
+plot(head(sort(itemsets, by = "lift"), n=30), method = "graph", control=list(cex=.8))
 ```
