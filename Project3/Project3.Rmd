@@ -4,8 +4,8 @@ author: Umais Siddiqui,Neil Hwang, Michelle Mondy, Kalyanaraman Parthasarathy an
   Murali Kunissery
 date: "October 17, 2017"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -165,6 +165,11 @@ df=fetch(rs, n=-1)
 
 head(df)
 
-pie(df$Total, labels = df$SkillName, main="Pie Chart of skills")
+rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
+
+AllJobs=fetch(rs, n=-1)
+
+head(AllJobs)
+
 
 ```
