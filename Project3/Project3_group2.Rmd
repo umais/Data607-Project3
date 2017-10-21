@@ -1,16 +1,23 @@
 ---
-title: "Untitled"
+title: "Project 3 Group 2"
 author: "Michelle Mondy"
 date: "October 19, 2017"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-#Load Required Packaged
-```{r} 
+#Overview
+For this project, we will use data to answer the question "What are the most valued data science skills?" For our approach, we have decided to scrape data from both Cybercoders and Indeed job listings to see which skills are most sought after when looking to hire a Data Scientist.
+
+##Load Required Packages
+```{r, comment=NA, results='hide', warning=FALSE} 
 library(rvest)
 library(stringr)
 library(RMySQL)
@@ -19,29 +26,28 @@ library(dplyr)
 ```
 
 
-#Grab data from Indeed
-We used the first 10 pages of job listings from Indeed.
+##Grab data from Indeed
+In order to scrape data from Indeed, we identified tags using the SelectorGadget. We decided to use the the first 10 pages of job listings results assuming they would be the most relevant.
 
 ```{r}
-getData <- function(url, x){
+getData <- function(url){
 IndeedJobTitle<-url %>%
   read_html() %>%
   html_nodes("#resultsCol .jobtitle") %>%
   html_text()
-IndeedJobTitle_clean <- str_extract(IndeedJobTitle, "[[:alpha:]., /-]{2,}")
+IndeedJobTitle_clean <<- str_extract(IndeedJobTitle, "[[:alpha:]., /-]{2,}")
 
 IndeedJobLocation<-url %>%
   read_html() %>%
   html_nodes(".location") %>%
   html_text()
-IndeedJobLocation_clean <- str_extract(IndeedJobLocation, "[[:alpha:], ]{2,}")
+IndeedJobLocation_clean <<- str_extract(IndeedJobLocation, "[[:alpha:], ]{2,}")
 
 IndeedSkills<-url %>%
   read_html() %>%
   html_nodes(".experience") %>%
   html_text()
-IndeedSkills_clean <- str_extract(str_sub(IndeedSkills, start=22), "[[:alpha:], ]{2,}")
-#test <- str_split(str_extract(str_sub(IndeedSkills, start=22), "[[:alpha:], ]{2,}"), ", ")
+IndeedSkills_clean <<- str_extract(str_sub(IndeedSkills, start=22), "[[:alpha:], ]{2,}")
 }
 
 getData("https://www.indeed.com/jobs?q=data+scientist&l=")
@@ -55,7 +61,7 @@ page4 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_cl
 getData("https://www.indeed.com/jobs?q=Data+Scientist&start=40")
 page5 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
 getData("https://www.indeed.com/jobs?q=Data+Scientist&start=50")
-page6 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
+#page6 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
 getData("https://www.indeed.com/jobs?q=Data+Scientist&start=60")
 page7 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
 getData("https://www.indeed.com/jobs?q=Data+Scientist&start=70")
@@ -65,10 +71,12 @@ page9 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_cl
 getData("https://www.indeed.com/jobs?q=Data+Scientist&start=90")
 page10 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
 
-indeed_data <- rbind(page1, page2, page3, page4, page5, page6, page7, page8, page9, page10)
+
+indeed_data <- rbind(page1, page2, page3, page4, page5, page7, page8, page9, page10)
 ```
 
-#Creating the MySQL tables
+##Creating the MySQL tables
+To follow the same structure as Umais, I have created the following 2 tables in MySQL. Note: The password will need to be updated in the connection statement. 
 
 ```{r}
 mydb = dbConnect(MySQL(), user='root', password='sqlpass', dbname='project3', host='localhost')
@@ -88,98 +96,123 @@ dbGetQuery(mydb, "CREATE TABLE IndeedDataScienceSkills(
   );" )
 ```
 
-#Transforming the Data to make it more usable
+##Transforming the Data to make it more usable
+
+Since we have the data in a data frame, but it is not very usuable yet, we would like to insert it into a separate tables in MYSQL and use sql to transform it. Once the data is in the format that fits the tables created above, it will be insert into those tables. 
 
 ```{r}
-dbWriteTable(mydb, "indeed_data", indeed_data)
+dbWriteTable(mydb, "indeed_data", indeed_data, overwrite = TRUE)
+
+#This query creates a separate field (skill1-12) for each of the skills listed in the "IndeedSkills_clean" column. It also strips out the white space.
 
 trans_query <- 
-"Select IndeedJobTitle_clean, IndeedJobLocation_clean
+"SELECT 
+IndeedJobTitle_clean
+,IndeedJobLocation_clean
+,case when 
+substring_index ( substring_index ( IndeedSkills_clean,',',12 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',11 ), ',', -1) 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',12 ), ',', -1)) else null 
+end as skill12
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',11 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',10 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',11 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',11 ), ',', -1)) else null 
 end as skill11
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',10 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',9 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',10 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',10 ), ',', -1)) else null 
 end as skill10
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',9 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',8 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',9 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',9 ), ',', -1)) else null 
 end as skill9
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',8 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',7 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',8 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',8 ), ',', -1)) else null 
 end as skill8
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',7 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',6 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',7 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',7 ), ',', -1)) else null 
 end as skill7
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',6 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',5 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',6 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',6 ), ',', -1)) else null 
 end as skill6
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',5 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',4 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',5 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',5 ), ',', -1)) else null 
 end as skill5
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',4 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',3 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',4 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',4 ), ',', -1)) else null 
 end as skill4
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',3 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',2 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',3 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',3 ), ',', -1)) else null 
 end as skill3
-
 ,case when 
 substring_index ( substring_index ( IndeedSkills_clean,',',2 ), ',', -1) <> substring_index ( substring_index ( IndeedSkills_clean,',',1 ), ',', -1) 
-then substring_index ( substring_index ( IndeedSkills_clean,',',2 ), ',', -1) else null 
+then trim(substring_index ( substring_index ( IndeedSkills_clean,',',2 ), ',', -1)) else null 
 end as skill2
-,substring_index ( substring_index ( IndeedSkills_clean,',',1 ), ',', -1) as skill1
-from project3.indeed_data;"
+,trim(substring_index ( substring_index ( IndeedSkills_clean,',',1 ), ',', -1)) as skill1
+FROM project3.indeed_data;"
 
 wide_data <- dbGetQuery(mydb, trans_query)
 head(wide_data)
 
 
 #Write the data to MYSQL and then use that table to Insert into the IndeedDataScienceJobs table
-dbWriteTable(mydb, "indeed_wide_data", wide_data)
+dbGetQuery(mydb, "DROP TABLE IF EXISTS indeed_wide_data;" )
+dbWriteTable(mydb, "indeed_wide_data", wide_data, overwrite = TRUE)
 dbGetQuery(mydb, "INSERT INTO IndeedDataScienceJobs(JobId, JobTitle,JobLocation) 
                   Select row_names,IndeedJobTitle_clean, IndeedJobLocation_clean
                   from project3.indeed_wide_data")
 
-
-
 wide_data$ID <- seq.int(nrow(wide_data))
-skills <- gather(wide_data,"n", "skill", 3:13)
-
+#Using the Tidyr package, we will rehape the data
+skills <- gather(wide_data,"n", "skill", 3:14)
+#Using dplyr we will subset the data to exclude null rows
 skills2 <- filter(skills, !is.na(skills$skill)) %>% 
   select(ID, skill) %>% 
   arrange(ID)
 skills2$skill_ID <- seq.int(nrow(skills2))
 
-
-dbWriteTable(mydb, "skills_data", skills2)
+#Write the data to MYSQL and then use that table to Insert into the IndeedDataScienceSkills table
+dbGetQuery(mydb, "DROP TABLE IF EXISTS skills_data;" )
+dbWriteTable(mydb, "skills_data", skills2, overwrite = TRUE)
 dbGetQuery(mydb, "INSERT INTO IndeedDataScienceSkills(SkillId, JobId, SkillName) 
                   Select skill_ID,ID, skill
                   from project3.skills_data")
 ```
 
 
-#Analysis
+##Analysis
+Now that we have the data in a usable format, we can do some analysis. Let look at the Top 15 most valued Data Science skills.
+
 ```{r}
-test <- count(skills2, skill) %>% arrange(desc(n))
+Most_valued_skills <- count(skills2, skill) %>% arrange(desc(n))
+Most_valued_skills
 
 
+top_15_skills <- dbGetQuery(mydb, "select SkillName, count(*) as n from project3.indeeddatascienceskills
+                                  group by SkillName
+                                  order by 2 desc
+                                  Limit 15;")
+
+
+
+library(ggplot2)
+ggplot(data=top_15_skills, aes(x=SkillName,y=n)) +
+  geom_bar(position="dodge",stat="identity") + 
+  coord_flip() +
+  ggtitle("Most Valued Data Science Skills") +
+  scale_x_discrete(
+    limits= c("Scala", "Sas", "Data Warehouse", "MATLAB","AI","Natural Language Processing", "Java","Data Mining","Spark", 
+              "Hadoop", "Data Science", "Big Data", "Python","R", "Machine Learning")
+  ) +
+theme(
+  axis.title.y=element_blank(),
+  axis.title.x=element_blank()
+  )
 ```
 
 
