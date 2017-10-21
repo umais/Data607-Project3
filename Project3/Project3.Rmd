@@ -42,107 +42,13 @@ library(plyr)
 
 In the step below we are opening the connection to MySQL database that resides locally but can also be a remote database server. We will use this connection to create the schema , Insert data that is collected from the scraping and also fetch the data for analysis.
 ```{r}
-#mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
-mydb = dbConnect(MySQL(), user='root', password='password', host= '127.0.0.1', port=3306)
+mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
+#mydb = dbConnect(MySQL(), user='root', password='password', host= '127.0.0.1', port=3306)
 #dbSendQuery(mydb, "CREATE DATABASE project3;")
-dbSendQuery(mydb, "USE project3")
+#dbSendQuery(mydb, "USE project3")
 ```
 
-##Insert Function
 
-In this step we are defining a function that will accept HTML data that would be parsed and inserted in MySQL tables for the purposes of our analysis 
-
-```{r}
-InsertData<-function (url){
-  selector_name<-".job-details-container"
-
-skills<-html_nodes(x = url, css = selector_name)
-for(i in 1:length(skills))
-{
-  selector_name<-".job-title a"
-  JobTitle<-html_nodes(x = skills[i], css = selector_name)%>%
-    html_text()
-   selector_name<-".location"
-  Location<-html_nodes(x = skills[i], css = selector_name)%>%
-    html_text()
-  selector_name<-".wage"
-  salary<-html_nodes(x = skills[i], css = selector_name)%>%
-    html_text()
-  
-   selector_name<-".skill-name"
-  skill<-html_nodes(x = skills[i], css = selector_name)%>%
-    html_text()
- 
-
- 
- dbGetQuery(mydb, paste("INSERT INTO DataScienceJobs(JobTitle,JobLocation,JobSalary) VALUES('" ,JobTitle,"','" ,Location,"','",salary,"')" ))
- 
-last_id = fetch(dbSendQuery(mydb, "SELECT LAST_INSERT_ID();"))
-
- for(j in 1 : length(skill))
- {
-
-  
-   dbGetQuery(mydb, paste("INSERT INTO  DataScienceSkills(JobId,SkillName) VALUES('"  ,last_id,"','",skill[j],"')" ))
-   
- }
-
-   
-}
-
-}
-```
-
-##Creating the MySQL Schema
-In this step we are dropping the tables and recreating them so that we can insert the data that is collected in next step. The purpose of dropping the tables is so that we can run the program multiple times and not create duplicate entries.
-```{r}
-dbGetQuery(mydb, "DROP TABLE IF EXISTS DataScienceJobs;" )
-dbGetQuery(mydb, "DROP TABLE IF exists DataScienceSkills;" )
-dbGetQuery(mydb, "CREATE TABLE DataScienceJobs(
-  JobId int auto_increment primary key,
-  JobTitle nvarchar(255),
-  JobLocation nvarchar(255),
-  JobSalary nvarchar(255)
- 
-  );" )
-
-dbGetQuery(mydb, "  CREATE TABLE DataScienceSkills(
-  SkillId int auto_increment primary key,
-  JobId int,
-  SkillName nvarchar(255)
-
-  );" )
-
-```
-
-##Data Collection
-
-In this step we will be collecting the data from CyberCoders and calling the function InsertData and passing the HTML as data to the function so that it could be parsed and inserted in to the MySQL tables
-
-```{r}
-url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/')
-
- InsertData(url)
- 
- url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=2')
- InsertData(url)
- 
-  url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=3')
- InsertData(url)
- 
-  url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=4')
- InsertData(url)
- 
-  url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=5')
- InsertData(url)
- 
-  url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=6')
- InsertData(url)
-#pager-item
-  selector_name<-".pager-item span"
-  pages<-html_nodes(x = url, css = selector_name)%>%
-    html_text()
-```
 
 ##Retrieving Data from MySQL
 

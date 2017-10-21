@@ -1,0 +1,46 @@
+---
+title: "test"
+author: "Umais Siddiqui"
+date: "October 21, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rvest)
+library(stringr)
+```
+
+## R Markdown
+
+
+```{r}
+url<- read_html('https://www.indeed.com/q-data-scientist-jobs.html')
+
+  selector_name<-".row"
+
+skills<-html_nodes(x = url, css = selector_name)
+
+for(i in 1:length(skills))
+{
+  selector_name<-".jobtitle"
+  IndeedjobTitle<-html_nodes(x = skills[i], css = selector_name)%>%
+    html_text()
+  
+   selector_name<-".company"
+  
+
+  
+     selector_name<-".experienceList"
+   IndeedexperienceList<-html_nodes(x = skills[i], css = selector_name)%>%
+    html_text()
+  print(IndeedjobTitle)
+
+  
+  print(unlist(strsplit(IndeedexperienceList, ",")))
+}
+  
+
+
+
+```

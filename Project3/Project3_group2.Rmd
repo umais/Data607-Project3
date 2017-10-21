@@ -71,7 +71,7 @@ indeed_data <- rbind(page1, page2, page3, page4, page5, page6, page7, page8, pag
 #Creating the MySQL tables
 
 ```{r}
-mydb = dbConnect(MySQL(), user='root', password='sqlpass', dbname='project3', host='localhost')
+mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
 
 dbGetQuery(mydb, "DROP TABLE IF EXISTS IndeedDataScienceJobs;" )
 dbGetQuery(mydb, "DROP TABLE IF exists IndeedDataScienceSkills;" )
