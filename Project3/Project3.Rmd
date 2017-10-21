@@ -74,7 +74,7 @@ We will be retrieving the data inserted in previous step and perfomring some dow
   
   head(df)
   
-  rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
+  rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName,Source FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
   
   AllJobs=fetch(rs, n=-1)
   
