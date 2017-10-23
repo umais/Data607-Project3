@@ -1,0 +1,281 @@
+---
+title: "Data 607 - Project 3 - A collaborative approach."
+author: "Group A1"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+---
+
+## Load Required Packages
+```{r  cache=FALSE, message=FALSE, warning=FALSE}
+library(rvest)
+library(stringr)
+library(RMySQL)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+library(devtools)
+library(arules)
+library(arulesViz)
+library(plyr)
+
+```
+
+
+#Grab data from Indeed and CyberCoders
+We used the first 10 pages of job listings from [**Indeed Job Site**](http://www.indeed.com) and [**Cyber Coders**](http://www.cybercoders.com)
+
+```{r}
+
+getData <- function(url){
+IndeedJobTitle<-url %>%
+  read_html() %>%
+  html_nodes("#resultsCol .jobtitle") %>%
+  html_text()
+IndeedJobTitle_clean <<- str_extract(IndeedJobTitle, "[[:alpha:]., /-]{2,}")
+
+IndeedJobLocation<-url %>%
+  read_html() %>%
+  html_nodes(".location") %>%
+  html_text()
+IndeedJobLocation_clean <<- str_extract(IndeedJobLocation, "[[:alpha:], ]{2,}")
+
+IndeedSkills<-url %>%
+  read_html() %>%
+  html_nodes(".experience") %>%
+  html_text()
+IndeedSkills_clean <<- str_extract(str_sub(IndeedSkills, start=22), "[[:alpha:], ]{2,}")
+}
+
+getData("https://www.indeed.com/jobs?q=data+scientist&l=")
+page1 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
+getData("https://www.indeed.com/jobs?q=Data+Scientist&start=10")
+page2 <- data.frame(IndeedJobTitle_clean,IndeedJobLocation_clean,IndeedSkills_clean)
+
+indeed_data <- rbind(page1, page2)
+```
+
+
+```{r}
+mydb = dbConnect(MySQL(), user='mkunis', password='Learning$123', dbname='project3', host='localhost')
+InsertData<-function (url){
+  selector_name<-".job-details-container"
+  
+  skills<-html_nodes(x = url, css = selector_name)
+  for(i in 1:length(skills))
+  {
+    selector_name<-".job-title a"
+    JobTitle<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    selector_name<-".location"
+    Location<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    selector_name<-".wage"
+    salary<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    
+    selector_name<-".skill-name"
+    skill<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    
+    
+    
+    dbGetQuery(mydb, paste("INSERT INTO DataScienceJobs(JobTitle,JobLocation,JobSalary,Source) VALUES('" ,JobTitle,"','" ,Location,"','",salary,"','CyberCoders')" ))
+    
+    last_id = fetch(dbSendQuery(mydb, "SELECT LAST_INSERT_ID();"))
+    
+    for(j in 1 : length(skill))
+    {
+      
+      dbGetQuery(mydb, paste("INSERT INTO  DataScienceSkills(JobId,SkillName) VALUES('"  ,last_id,"','",skill[j],"')" ))
+    }
+
+  }
+  
+}
+
+InsertIndeedData<-function (url){
+  selector_name<-".row"
+  skills<-html_nodes(x = url, css = selector_name)
+  for(i in 1:length(skills))
+  {
+    selector_name<-".jobtitle"
+    JobTitle<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    selector_name<-".location"
+    Location<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    
+    salary<-""
+    
+    selector_name<-".experienceList"
+    skill<-html_nodes(x = skills[i], css = selector_name)%>%
+      html_text()
+    
+    skill<-unlist(strsplit(skill, ","))
+    dbGetQuery(mydb, paste("INSERT INTO DataScienceJobs(JobTitle,JobLocation,JobSalary,Source) VALUES('" ,JobTitle,"','" ,Location,"','",salary,"','Indeed')" ))
+    
+    last_id = fetch(dbSendQuery(mydb, "SELECT LAST_INSERT_ID();"))
+    
+    for(j in 1 : length(skill))
+    {
+      
+      
+      dbGetQuery(mydb, paste("INSERT INTO  DataScienceSkills(JobId,SkillName) VALUES('"  ,last_id,"','",skill[j],"')" ))
+      
+    }
+    
+    
+  }
+  
+}
+
+dbGetQuery(mydb, "DROP TABLE IF EXISTS DataScienceJobs;" )
+dbGetQuery(mydb, "DROP TABLE IF exists DataScienceSkills;" )
+dbGetQuery(mydb, "CREATE TABLE DataScienceJobs(
+           JobId int auto_increment primary key,
+           JobTitle nvarchar(255),
+           JobLocation nvarchar(255),
+           JobSalary nvarchar(255),
+           Source nvarchar(255)
+);" )
+
+dbGetQuery(mydb, "  CREATE TABLE DataScienceSkills(
+           SkillId int auto_increment primary key,
+           JobId int,
+           SkillName nvarchar(255)
+           
+);" )
+
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/')
+InsertData(url)
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=2')
+InsertData(url)
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=3')
+InsertData(url)
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=4')
+InsertData(url)
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=5')
+InsertData(url)
+url<- read_html('https://www.cybercoders.com/jobs/data-scientist-jobs/?page=6')
+InsertData(url)
+#pager-item
+
+url<- read_html('https://www.indeed.com/q-data-scientist-jobs.html')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=10')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=20')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=30')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=40')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=50')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=60')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=70')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=80')
+InsertIndeedData(url)
+url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=90')
+InsertIndeedData(url)
+```
+
+
+
+
+## Creating the MySQL tables
+
+```{r  cache=FALSE, message=FALSE, warning=FALSE, results='hide'}
+dsQuery = "select * from DataScienceJobs"
+dskQuery = "select * from DataScienceSkills"
+dsJobs <- dbGetQuery(mydb, dsQuery)
+dsSkills <- dbGetQuery(mydb, dskQuery)
+
+```
+
+```{r, echo=FALSE, results='asis'}
+knitr::kable(head(dsJobs, 10))
+knitr::kable(head(dsSkills, 10))
+```
+
+
+##Machine learning Analysis
+  
+  We can tell by the initial look from the pie chart and the results from group by quety that Python is the skill that is most valued.
+  
+```{r}
+  rs = dbSendQuery(mydb, "SELECT SkillName,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId GROUP BY SkillName Order By Total desc ;")
+  
+  df=fetch(rs, n=-1)
+  
+  head(df)
+  
+  rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName,Source FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
+  
+  AllJobs=fetch(rs, n=-1)
+  
+head(AllJobs)
+```
+
+To explore the data further, we perform an association analysis, which is one of the more popular unsupervised machine learning algorithms, using the package *arules*.
+To begin, we preoprocess the data to list the skills by specific jobs.
+
+```{r}
+df <- data.frame(matrix(ncol = 2, nrow = nrow(AllJobs)))
+df[,1] <- factor(AllJobs[,"JobId"])
+df[,2] <- factor(AllJobs[,"SkillName"])
+temp <- df[,c(1,2)]
+first_item <- ddply(temp, .(X1), function(x) x[1, ])
+temp2 <- merge(x = temp, y = first_item, by = "X1", all.x = TRUE)
+data <- temp2[duplicated(temp2$X1),]
+data$X1 <- data$X2.y
+data$X2.y <- NULL
+names(data) <- c("X", "Y")
+m <- as.matrix(data)
+l <- lapply(1:nrow(m), FUN = function(i) (m[i, ]))
+```
+
+Now, we convert the list into transactions that *arules* can work with in forming aprior rules to identify the most common associations that tend to occur together among skills. 
+```{r}
+transactions <- as(l, "transactions")
+itemsets <- apriori(transactions, parameter = list(target = "frequent",
+    supp=0.001, minlen = 2, maxlen=6))
+```
+
+This frequency plot confirms our findings earlier that among the most demanded skill of data scientists are python, machine learning, R, data mining, and hadoop.
+```{r}
+#Top 30 most frequently occurring skills
+itemFrequencyPlot(transactions, topN=30)
+quality(itemsets)$lift <- interestMeasure(itemsets, measure="lift", trans = transactions)
+
+#Top 30 associations
+dsInspect <- inspect(head(sort(itemsets, by = "lift"), n=30))
+
+#Visualization of top associations and skills
+plot(head(sort(itemsets, by = "lift"), n=30), method = "graph", control=list(cex=.8))
+```
+
+
+```{r, echo=FALSE, results='asis'}
+knitr::kable(head(dsInspect, 30))
+```
+
+## Conclusion
+
+Please visit the [development page](http://github.com/yixuan/prettydoc/) of the 
+`prettydoc` package for latest updates and news. Comments, bug reports and
+pull requests are always welcome.
+
+
+## Authors
+* Kalyan Parthasarathy
+* Michelle Mondy
+* Murali Kunissery
+* Neil Hwang
+* Umais Siddiqui
