@@ -141,3 +141,5 @@ url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=80')
 InsertIndeedData(url)
 url<- read_html('https://www.indeed.com/jobs?q=Data+Scientist&start=90')
 InsertIndeedData(url)
+
+dbGetQuery(mydb, "Update DataScienceSkills SET SkillName=TRIM(SkillName) WHERE SkillName like '%Python%'" )

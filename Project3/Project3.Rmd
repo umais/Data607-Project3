@@ -4,8 +4,8 @@ author: Umais Siddiqui,Neil Hwang, Michelle Mondy, Kalyanaraman Parthasarathy an
   Murali Kunissery
 date: "October 17, 2017"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,24 +13,28 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-Rpubs link: http://rpubs.com/umais/data607_project3 |
+Rpubs link: http://rpubs.com/umais/Project3_Data607 | 
+
             http://rpubs.com/neilhwang/group2
+            
+            http://rpubs.com/mkunissery/321374 
+            
+            http://rpubs.com/mmondy/320996
 
 GitHub link: https://github.com/umais/Data607-Project3
 
 ##Obejective
 
-In this assignment our goal is to be able to answer the question 
+In this project our goal is to be able to answer the question 
 
 **"Which are the most valued data science skills?"**
 
 ##Approach
 
-We have researched a couple of job searching websites and decided to use CyberCoders website to scrape the skillset required for Jobs that had a title of Data Scientist.We will be using the rvest and MySQL libraries. rvest will be used to scrape and parse the HTML data.
+In order to find the answer to our question we have researched a couple of job searching websites and decided to use CyberCoders and Indeed website to scrape the skillsets required for Jobs that had a title of Data Scientist.We will be using the rvest and MySQL libraries. rvest will be used to scrape and parse the HTML data.
 
 ```{r}
 library(devtools)
-library(rvest)
 library(RMySQL)
 library(arules)
 library(arulesViz)
@@ -38,23 +42,54 @@ library(ggplot2)
 library(plyr)
 ```
 
+
+##Database Schema
+
+CREATE TABLE DataScienceJobs(
+
+
+           JobId int auto_increment primary key,
+           
+           JobTitle nvarchar(255),
+           
+           JobLocation nvarchar(255),
+           
+           JobSalary nvarchar(255),
+           
+           Source nvarchar(255)
+           
+);
+
+
+CREATE TABLE DataScienceSkills(
+
+           SkillId int auto_increment primary key,
+           
+           JobId int,
+           
+           SkillName nvarchar(255)
+           
+);
+
 ##Data Collection
 
-In the step below we are opening the connection to MySQL database that resides locally but can also be a remote database server. We will use this connection to create the schema , Insert data that is collected from the scraping and also fetch the data for analysis.
-```{r}
-mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
-#mydb = dbConnect(MySQL(), user='root', password='password', host= '127.0.0.1', port=3306)
-#dbSendQuery(mydb, "CREATE DATABASE project3;")
-#dbSendQuery(mydb, "USE project3")
-```
+We seperated out the data collection part in in a R Script file called Project3.R
+
+In that file we are scraping the data from CyberCoders and Indeed website for Jobs that have a title of data scientist and inserting it in to the tables created based on the above schema. Below is the link to that code.
+
+https://github.com/umais/Data607-Project3/blob/master/Project3/Project3.R
 
 
 
 ##Retrieving Data from MySQL
 
-We will be retrieving the data inserted in previous step and perfomring some downstream analysis on the data.
+We will be retrieving the data inserted in MYSQL from the scraping done from the R script file and performing some downstream analysis on the data.
 
 ```{r}
+mydb = dbConnect(MySQL(), user='root', password='Welcome@1', dbname='project3', host='localhost')
+#mydb = dbConnect(MySQL(), user='root', password='password', host= '127.0.0.1', port=3306)
+#dbSendQuery(mydb, "CREATE DATABASE project3;")
+#dbSendQuery(mydb, "USE project3")
   results = dbSendQuery(mydb, "SELECT j.JobTitle,j.JobLocation,s.SkillName FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId  ;")
   
   jobSkills=fetch(results, n=-1)
@@ -63,16 +98,41 @@ We will be retrieving the data inserted in previous step and perfomring some dow
   
 ```
   
-  ##More Analysis
+##More Analysis
   
-  We can tell by the initial look from the pie chart and the results from group by quety that Python is the skill that is most valued.
+  We can tell by the initial results from group by query that Python is the skill that is most valued.
   
 ```{r}
   rs = dbSendQuery(mydb, "SELECT SkillName,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId GROUP BY SkillName Order By Total desc ;")
   
   df=fetch(rs, n=-1)
   
+
+  
   head(df)
+```
+
+##Looking at Indeed Data
+
+If we look at only Indeed data again we can see that Python , R and Machine Learning are among the top required skills.
+
+```{r}
+      rs = dbSendQuery(mydb, "SELECT SkillName,Source,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId Where Source='Indeed' GROUP BY SkillName,Source Order By Total desc ;")
+      
+        IndeedDF=fetch(rs, n=-1)
+        head(IndeedDF)
+        
+```
+
+##Looking at CyberCoders Data 
+
+Similarly in Cyber Coders data we see the same thing that Python,R,Machine Learning and Hadoop are among the top required skills for data scientist.
+
+```{r}
+    rs = dbSendQuery(mydb, "SELECT SkillName,Source,Count(1) as Total FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId Where Source='CyberCoders' GROUP BY SkillName,Source Order By Total desc ;")
+      
+        CyberCoderDF=fetch(rs, n=-1)
+        head(CyberCoderDF)
   
   rs = dbSendQuery(mydb, "SELECT j.JobId,JobTitle,JobLocation,JobSalary,SkillName,Source FROM DataScienceJobs j INNER JOIN DataScienceSkills s ON j.JobId=s.JobId ;")
   
@@ -80,6 +140,8 @@ We will be retrieving the data inserted in previous step and perfomring some dow
   
 head(AllJobs)
 ```
+
+##Association Analysis
 
 To explore the data further, we perform an association analysis, which is one of the more popular unsupervised machine learning algorithms, using the package *arules*.
 To begin, we preoprocess the data to list the skills by specific jobs.
@@ -118,3 +180,9 @@ inspect(head(sort(itemsets, by = "lift"), n=30))
 #Visualization of top associations and skills
 plot(head(sort(itemsets, by = "lift"), n=30), method = "graph", control=list(cex=.8))
 ```
+
+
+##Conclusion
+
+Based on the data collected from CyberCoders and Indeed we can see after doing some analysis that the most valuable skills for a data scientist are Python, R , Machine learning and Hadoop.
+
